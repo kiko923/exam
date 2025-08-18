@@ -152,7 +152,19 @@ layui.use(['layer'], function(){
         <div class="question">
             <h4>第<?= $index + 1 ?>题（<?= $q['score'] ?>分）【<?= $q['type'] ?>】</h4>
             <p><?= nl2br(htmlspecialchars($q['question'])) ?></p>
+            
+            <!--题目图片-->
+            <?php //echo json_encode($q,448)?>
+            <?php if (!empty($q['image'])): ?>
+                <div style="margin:12px 0; text-align:center;">
+                    <img src="<?= htmlspecialchars($q['image']) ?>" 
+                         alt="题目图片" 
+                         style="max-width:300px; width:80%; height:auto; border:1px solid #ddd; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.1);">
+                </div>
+            <?php endif; ?>
 
+            
+            
             <?php
             $qid = "q{$index}";
             $ua = $userAnswers[$qid] ?? null;
@@ -177,7 +189,7 @@ layui.use(['layer'], function(){
                 <input type="radio" name="<?= $qid ?>" value="错" title="错" <?= ($ua === '错') ? 'checked' : '' ?> required>
 
             <?php elseif ($q['type'] === '填空题'): ?>
-                <input type="text" name="<?= $qid ?>" class="layui-input" value="<?= htmlspecialchars($ua ?? '') ?>" required>
+                <input type="text" placeholder="请输入答案" name="<?= $qid ?>" class="layui-input" value="<?= htmlspecialchars($ua ?? '') ?>" required>
 
             <?php else: ?>
                 <input type="text" name="<?= $qid ?>" class="layui-input" value="<?= htmlspecialchars($ua ?? '') ?>" required>
@@ -288,6 +300,18 @@ layui.use(['form'], function(){
         <div style="margin-bottom:10px; color:#333; font-size:15px;">
             <?= nl2br(htmlspecialchars($q['question'])) ?>
         </div>
+        
+        
+<?php if (!empty($q['image'])): ?>
+    <div style="margin:12px 0; text-align:center;">
+        <img src="<?= htmlspecialchars($q['image']) ?>" 
+             alt="题目图片" 
+             style="max-width:300px; width:80%; height:auto; border:1px solid #ddd; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.1);">
+    </div>
+<?php endif; ?>
+
+
+
         <?php
         // 构建选项字符串
         $optionsStr = '';

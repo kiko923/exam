@@ -106,6 +106,15 @@ $categories = $pdo->query("SELECT id, name FROM question_categories")->fetchAll(
       </div>
     </div>
     
+    <!--题目图片-->
+    <div class="layui-form-item">
+      <label class="layui-form-label">图片URL</label>
+      <div class="layui-input-block">
+        <input type="text" name="image" placeholder="请输入题目图片URL" class="layui-input">
+      </div>
+    </div>
+    <!--题目图片-->
+    
     <div class="layui-form-item option-group">
       <label class="layui-form-label">选项A</label>
       <div class="layui-input-block">
@@ -181,6 +190,13 @@ layui.use(['table', 'form', 'layer'], function(){
         {field: 'id', title: 'ID', sort: true,width: 30},
         {field: 'type', title: '题目类型',width: 100},
         {field: 'question', title: '题目内容',width: 500},
+        {field: 'image', title: '题目图片', width: 120, templet: function(d){
+            if(d.image){
+              return '<button class="layui-btn layui-btn-xs" onclick="previewImage(\''+ d.image +'\')">预览图片</button>';
+            } else {
+              return '无图片';
+            }
+        }},
         {field: 'answer', title: '正确答案',width: 100},
         {
           field: 'options',
@@ -207,7 +223,6 @@ layui.use(['table', 'form', 'layer'], function(){
       }
     });
 
-  
   // 加载题目按钮点击事件
   $('#loadQuestionsBtn').on('click', function(){
     var categoryId = $('#category_id').val();
@@ -318,15 +333,16 @@ layui.use(['table', 'form', 'layer'], function(){
     
     // 填充表单数据
     form.val('editForm', {
-      'id': data.id,
-      'type': data.type,
-      'question': data.question,
-      'option_a': data.option_a,
-      'option_b': data.option_b,
-      'option_c': data.option_c,
-      'option_d': data.option_d,
-      'answer': data.answer,
-      'explanation': data.explanation
+          'id': data.id,
+          'type': data.type,
+          'question': data.question,
+          'option_a': data.option_a,
+          'option_b': data.option_b,
+          'option_c': data.option_c,
+          'option_d': data.option_d,
+          'answer': data.answer,
+          'explanation': data.explanation,
+          'image': data.image   // 新增
     });
     
     // 打开弹窗
@@ -386,6 +402,18 @@ layui.use(['table', 'form', 'layer'], function(){
   });
 });
 </script>
+<script>
+    function previewImage(url){
+  layer.open({
+    type: 1,
+    title: false,
+    closeBtn: 1,
+    area: ['80%', '80%'], // 弹窗大小
+    shadeClose: true,
+    content: '<div style="text-align:center;padding:10px;"><img src="'+ url +'" style="max-width:100%;max-height:100%;"></div>'
+  });
+}
 
+</script>
 </body>
 </html> 

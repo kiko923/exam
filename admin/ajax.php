@@ -247,64 +247,92 @@ switch ($action) {
         exit; // 终止脚本执行，确保不会继续执行后续代码
         break;
         
-    // 处理Excel上传
+        // 处理Excel上传
     case 'handle_upload':
         require '../includes/vendor/autoload.php'; // 引入 PhpSpreadsheet
-
-        // 判断文件是否上传
+    
+        header('Content-Type: application/json; charset=utf-8');
+    
+        // 1) 校验上传
         if (!isset($_FILES['excel_file']) || $_FILES['excel_file']['error'] !== UPLOAD_ERR_OK) {
-            echo json_encode(['success' => false, 'message' => 'Excel 文件上传失败'],448);
-            exit;
+            echo json_encode(['success' => false, 'message' => 'Excel 文件上传失败'], 448);
+            break;
         }
-
-        // 判断分类是否有效
+    
+        // 2) 校验分类
         $category_id = isset($_POST['category_id']) ? intval($_POST['category_id']) : 0;
         if ($category_id <= 0) {
-            echo json_encode(['success' => false, 'message' => '请选择有效的题库分类'],448);
-            exit;
+            echo json_encode(['success' => false, 'message' => '请选择有效的题库分类'], 448);
+            break;
         }
-
+    
         try {
-            // 加载 Excel 文件
-            $spreadsheet = IOFactory::load($_FILES['excel_file']['tmp_name']);
+            // 3) 读取 Excel
+            $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($_FILES['excel_file']['tmp_name']);
             $sheet = $spreadsheet->getActiveSheet();
             $data = $sheet->toArray();
-
+    
             $inserted = 0;
             foreach ($data as $index => $row) {
                 if ($index === 0) continue; // 跳过标题行
-
-                // 提取每列
-                list($type, $question, $a, $b, $c, $d, $answer, $explanation) = array_pad($row, 8, '');
-
+    
+                // 约定列：type | question | A | B | C | D | answer | explanation | image(可选)
+                // 兼容老模板：如果没有第9列，image留空
+                // 使用 array_pad 统一长度到9列
+                list($type, $question, $a, $b, $c, $d, $answer, $explanation, $image) = array_pad($row, 9, '');
+    
+                // 去除首尾空格，避免脏数据
+                $type = trim((string)$type);
+                $question = trim((string)$question);
+                $a = trim((string)$a);
+                $b = trim((string)$b);
+                $c = trim((string)$c);
+                $d = trim((string)$d);
+                $answer = trim((string)$answer);
+                $explanation = trim((string)$explanation);
+                $image = trim((string)$image);
+    
                 // 跳过空题
-                if (empty(trim($question))) continue;
-
+                if ($question === '') continue;
+    
                 // 填空题不需要选项
-                if (strpos($type, '填空') !== false) {
-                    // $answer = 
+                if (mb_strpos($type, '填空') !== false) {
                     $a = $b = $c = $d = '';
                 }
-                
-                // if (strpos($type, '简答') !== false) {
-                //     $answer = $a = $b = $c = $d = '';
-                    
-                // }
-
-                // 插入数据库
+    
+                // 可选：简单校验 image 是否像 URL（不严格，仅防误填）
+                if ($image !== '' && !preg_match('#^https?://#i', $image)) {
+                    // 如果你更希望严格报错，可改为 continue / 记录错误
+                    // 这里选择忽略非法URL，置空
+                    $image = '';
+                }
+    
+                // 4) 插入数据库，包含 image 字段
                 $stmt = $pdo->prepare("INSERT INTO questions 
-                    (type, question, option_a, option_b, option_c, option_d, answer, explanation, category_id) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                
-                $stmt->execute([$type, $question, $a, $b, $c, $d, $answer, $explanation, $category_id]);
+                    (type, question, option_a, option_b, option_c, option_d, answer, explanation, image, category_id) 
+                    VALUES (:type, :question, :a, :b, :c, :d, :answer, :explanation, :image, :category_id)");
+    
+                $stmt->execute([
+                    ':type' => $type,
+                    ':question' => $question,
+                    ':a' => $a,
+                    ':b' => $b,
+                    ':c' => $c,
+                    ':d' => $d,
+                    ':answer' => $answer,
+                    ':explanation' => $explanation,
+                    ':image' => $image, // 新增：图片URL
+                    ':category_id' => $category_id
+                ]);
+    
                 $inserted++;
             }
-
-            echo json_encode(['success' => true, 'message' => "成功导入 {$inserted} 道题"],448);
+    
+            echo json_encode(['success' => true, 'message' => "成功导入 {$inserted} 道题"], 448);
         } catch (Exception $e) {
-            echo json_encode(['success' => false, 'message' => '导入过程中发生错误: ' . $e->getMessage()],448);
+            echo json_encode(['success' => false, 'message' => '导入过程中发生错误: ' . $e->getMessage()], 448);
         }
-        break;
+    break;
         
     // 获取考试列表
     case 'get_exams':
@@ -590,39 +618,47 @@ switch ($action) {
     // 验证码生成
     case 'captcha':
         $width = 120;
-        $height = 40;
-        $image = imagecreatetruecolor($width, $height);
-    
-        // 设置颜色
-        $bg_color = imagecolorallocate($image, 255, 255, 255); // 白色背景
-        $text_color = imagecolorallocate($image, 0, 0, 0); // 黑色文字
-    
-        // 填充背景
-        imagefilledrectangle($image, 0, 0, $width, $height, $bg_color);
-    
-        // 生成随机验证码
-        $code = substr(str_shuffle("0123456789"), 0, 4);
-        $_SESSION['captcha_code'] = $code;
-    
-        // 使用自定义字体
-        $font = '../assets/font/elephant.ttf'; // 指向你的 .ttf 字体文件
-    
-        if (!file_exists($font)) {
-            die('Font file not found!');
-        }
-    
-        // 设置字体大小
-        $fontSize = 27;
-        $x = 10;
-        $y = 30;
-    
-        // 绘制验证码
-        imagettftext($image, $fontSize, 0, $x, $y, $text_color, $font, $code);
-    
-        header('Content-Type: image/png');
-        imagepng($image);
-        imagedestroy($image);
-        exit;
+$height = 40;
+
+// 创建画布
+$image = imagecreatetruecolor($width, $height);
+
+// 设置颜色
+$bg_color = imagecolorallocate($image, 255, 255, 255); // 白色背景
+$text_color = imagecolorallocate($image, 0, 0, 0); // 黑色文字
+$noise_color = imagecolorallocate($image, 100, 100, 100); // 干扰线颜色
+
+// 填充背景
+imagefilledrectangle($image, 0, 0, $width, $height, $bg_color);
+
+// // 添加干扰线
+// for ($i = 0; $i < 5; $i++) {
+//     imageline($image, rand(0,$width), rand(0,$height), rand(0,$width), rand(0,$height), $noise_color);
+// }
+
+// // 添加干扰点
+// for ($i = 0; $i < 50; $i++) {
+//     imagesetpixel($image, rand(0,$width), rand(0,$height), $noise_color);
+// }
+
+// 生成随机验证码
+$code = substr(str_shuffle("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"), 0, 4);
+$_SESSION['captcha_code'] = $code;
+
+// 使用内置字体绘制
+$font_size = 5; // 内置字体大小 1-5
+$spacing = ($width - 10) / strlen($code); // 每个字符的间距
+for ($i = 0; $i < strlen($code); $i++) {
+    $x = 5 + $i * $spacing;
+    $y = rand(5, $height - 15);
+    imagestring($image, $font_size, $x, $y, $code[$i], $text_color);
+}
+
+// 输出图片
+header('Content-Type: image/png');
+imagepng($image);
+imagedestroy($image);
+exit;
         break;
         
     // 保存/更新题目
@@ -644,7 +680,7 @@ switch ($action) {
             $option_d = isset($_POST['option_d']) ? trim($_POST['option_d']) : '';
             $answer = isset($_POST['answer']) ? trim($_POST['answer']) : '';
             $explanation = isset($_POST['explanation']) ? trim($_POST['explanation']) : '';
-            
+            $image = isset($_POST['image']) ? trim($_POST['image']) : '';
             // 验证必填字段
             if (empty($question) || empty($type) || empty($answer)) {
                 echo json_encode(['success' => false, 'message' => '题目内容、类型和答案不能为空'],448);
@@ -667,11 +703,12 @@ switch ($action) {
                     option_c = ?, 
                     option_d = ?, 
                     answer = ?, 
-                    explanation = ? 
+                    explanation = ?, 
+                    image = ?
                     WHERE id = ?");
                 
                 $stmt->execute([
-                    $type, $question, $option_a, $option_b, $option_c, $option_d, $answer, $explanation, $id
+                    $type, $question, $option_a, $option_b, $option_c, $option_d, $answer, $explanation,$image ,$id
                 ]);
                 
                 if ($stmt->rowCount() > 0) {
@@ -689,11 +726,11 @@ switch ($action) {
                 }
                 
                 $stmt = $pdo->prepare("INSERT INTO questions 
-                    (type, question, option_a, option_b, option_c, option_d, answer, explanation, category_id) 
+                    (type, question, option_a, option_b, option_c, option_d, answer, explanation,image ,category_id) 
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 
                 $stmt->execute([
-                    $type, $question, $option_a, $option_b, $option_c, $option_d, $answer, $explanation, $category_id
+                    $type, $question, $option_a, $option_b, $option_c, $option_d, $answer, $explanation, $image, $category_id
                 ]);
                 
                 if ($stmt->rowCount() > 0) {

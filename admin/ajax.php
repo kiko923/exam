@@ -615,50 +615,42 @@ switch ($action) {
         }
         break;
         
-    // 验证码生成
+        // 验证码生成
     case 'captcha':
-        $width = 120;
-$height = 40;
-
-// 创建画布
-$image = imagecreatetruecolor($width, $height);
-
-// 设置颜色
-$bg_color = imagecolorallocate($image, 255, 255, 255); // 白色背景
-$text_color = imagecolorallocate($image, 0, 0, 0); // 黑色文字
-$noise_color = imagecolorallocate($image, 100, 100, 100); // 干扰线颜色
-
-// 填充背景
-imagefilledrectangle($image, 0, 0, $width, $height, $bg_color);
-
-// // 添加干扰线
-// for ($i = 0; $i < 5; $i++) {
-//     imageline($image, rand(0,$width), rand(0,$height), rand(0,$width), rand(0,$height), $noise_color);
-// }
-
-// // 添加干扰点
-// for ($i = 0; $i < 50; $i++) {
-//     imagesetpixel($image, rand(0,$width), rand(0,$height), $noise_color);
-// }
-
-// 生成随机验证码
-$code = substr(str_shuffle("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"), 0, 4);
-$_SESSION['captcha_code'] = $code;
-
-// 使用内置字体绘制
-$font_size = 5; // 内置字体大小 1-5
-$spacing = ($width - 10) / strlen($code); // 每个字符的间距
-for ($i = 0; $i < strlen($code); $i++) {
-    $x = 5 + $i * $spacing;
-    $y = rand(5, $height - 15);
-    imagestring($image, $font_size, $x, $y, $code[$i], $text_color);
-}
-
-// 输出图片
-header('Content-Type: image/png');
-imagepng($image);
-imagedestroy($image);
-exit;
+            $width = 120;
+            $height = 40;
+            $image = imagecreatetruecolor($width, $height);
+        
+            // 设置颜色
+            $bg_color = imagecolorallocate($image, 255, 255, 255); // 白色背景
+            $text_color = imagecolorallocate($image, 0, 0, 0); // 黑色文字
+        
+            // 填充背景
+            imagefilledrectangle($image, 0, 0, $width, $height, $bg_color);
+        
+            // 生成随机验证码
+            $code = substr(str_shuffle("0123456789"), 0, 4);
+            $_SESSION['captcha_code'] = $code;
+        
+            // 使用自定义字体
+            $font = '../assets/font/elephant.ttf'; // 指向你的 .ttf 字体文件
+        
+            if (!file_exists($font)) {
+                die('Font file not found!');
+            }
+        
+            // 设置字体大小
+            $fontSize = 27;
+            $x = 10;
+            $y = 30;
+        
+            // 绘制验证码
+            imagettftext($image, $fontSize, 0, $x, $y, $text_color, $font, $code);
+        
+            header('Content-Type: image/png');
+            imagepng($image);
+            imagedestroy($image);
+            exit;
         break;
         
     // 保存/更新题目

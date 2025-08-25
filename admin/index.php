@@ -39,6 +39,11 @@ require_once 'auth_check.php';
   <div class="layui-header">
     <div class="layui-logo">考试系统管理后台</div>
     <ul class="layui-nav layui-layout-right">
+        <li class="layui-nav-item">
+          <a href="javascript:;" onclick="reloadIframe()">
+            <i class="layui-icon layui-icon-refresh"></i> 刷新
+          </a>
+        </li>
       <li class="layui-nav-item">欢迎，<?php echo htmlspecialchars($_SESSION['admin_user']); ?></li>
       <li class="layui-nav-item"><a href="ajax.php?act=logout">退出</a></li>
     </ul>
@@ -84,13 +89,18 @@ require_once 'auth_check.php';
             <i class="layui-icon layui-icon-login-wechat"></i> 绑定微信登录
           </a>
         </li>
-    <?php if (isset($_SESSION['admin_user']) && $_SESSION['admin_user'] === 'admin') { ?>
-      <li class="layui-nav-item">
-        <a href="create_user.php" data-hash="create_user">
-          <i class="layui-icon layui-icon-add-circle"></i> 创建用户
-        </a>
-      </li>
-    <?php } ?>
+        <?php if (!empty($_SESSION['admin_is_admin'])) { ?>
+          <!--<li class="layui-nav-item">-->
+          <!--  <a href="create_user.php" data-hash="create_user">-->
+          <!--    <i class="layui-icon layui-icon-add-circle"></i> 创建用户-->
+          <!--  </a>-->
+          <!--</li>-->
+          <li class="layui-nav-item">
+            <a href="user_manager.php" data-hash="list_user">
+              <i class="layui-icon layui-icon-friends"></i> 用户管理
+            </a>
+          </li>
+        <?php } ?>
 
         
         <!-- 其他空菜单项可去除或保留 -->
@@ -132,7 +142,8 @@ layui.use('element', function(){
     'exam_records': 'exam_records.php',
     'bind_wechat': 'bind_wechat.php',
     'editinfo': 'editinfo.php',
-    'create_user': 'create_user.php',
+    // 'create_user': 'create_user.php',
+    'list_user': 'user_manager.php',
   };
 
   function loadPageByHash() {
@@ -174,7 +185,23 @@ layui.use('element', function(){
     });
   });
 });
-</script>
 
+</script>
+<script>
+    function reloadIframe(){
+  var iframe = document.getElementById('mainFrame');
+  if(iframe && iframe.contentWindow){
+    iframe.contentWindow.location.reload(true);
+  }
+}
+
+// 捕获快捷键 F5 / Ctrl+R / Cmd+R
+document.addEventListener('keydown', function(e){
+  if(e.key === "F5" || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "r")){
+    e.preventDefault();
+    reloadIframe();
+  }
+});
+</script>
 </body>
 </html>

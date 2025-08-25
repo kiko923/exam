@@ -24,7 +24,7 @@ if (!$code || $type !== 'wx') {
 }
 
 // 请求第三方接口换取用户信息
-$api = "https://login.yzcdn.net/connect.php?act=callback&appid={$appid}&appkey={$appkey}&type={$type}&code={$code}";
+$api = "https://login.znnu.com/connect.php?act=callback&appid={$appid}&appkey={$appkey}&type={$type}&code={$code}";
 
 $response = file_get_contents($api);
 $data = json_decode($response, true);

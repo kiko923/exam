@@ -5,6 +5,14 @@
  */
 // 引入PhpSpreadsheet库（用于Excel处理）
 use PhpOffice\PhpSpreadsheet\IOFactory;
+// 仅允许管理员操作的简单守卫
+function require_admin_priv() {
+    if (empty($_SESSION['admin_is_admin'])) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['success' => false, 'message' => '无权限：仅管理员可操作'],448);
+        exit;
+    }
+}
 
 include('../includes/common.php');
 header('Content-Type: application/json; charset=utf-8');
@@ -213,29 +221,40 @@ switch ($action) {
         }
         break;
         
-        case 'login':
-            $username = $_POST['username'] ?? '';
-            $password = $_POST['password'] ?? '';
-            $captcha  = $_POST['captcha'] ?? '';
-        
-            if (strtolower($captcha) !== strtolower($_SESSION['captcha_code'] ?? '')) {
-                echo json_encode(['code' => 1, 'msg' => '验证码错误'],448);
-                exit;
-            }
-        
-            $password = md5($password);
-            $stmt = $pdo->prepare("SELECT * FROM admin_users WHERE username = ? AND password = ?");
-            $stmt->execute([$username, $password]);
-            $user = $stmt->fetch();
-        
-            if ($user) {
-                $_SESSION['admin_logged_in'] = true;
-                $_SESSION['admin_user'] = $username;
-                $_SESSION['admin_id'] = $user['id'];  // 这里保存管理员ID，关键！
-                echo json_encode(['code' => 0, 'msg' => '登录成功'],448);
-            } else {
-                echo json_encode(['code' => 1, 'msg' => '用户名或密码错误'],448);
-            }
+    case 'login':
+        $username = $_POST['username'] ?? '';
+        $password = $_POST['password'] ?? '';
+        $captcha  = $_POST['captcha'] ?? '';
+    
+        if (!isset($_SESSION['captcha_code']) || strtolower($captcha) !== strtolower($_SESSION['captcha_code'])) {
+            echo json_encode(['code' => 1, 'msg' => '验证码错误'], 448);
+            exit;
+        }
+    
+        $passwordHashed = md5($password);
+        // 👇 加上 is_admin
+        $stmt = $pdo->prepare("SELECT id, username, password, enabled, is_admin FROM admin_users WHERE username = ? AND password = ?");
+        $stmt->execute([$username, $passwordHashed]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+        if (!$user) {
+            echo json_encode(['code' => 1, 'msg' => '用户名或密码错误'], 448);
+            exit;
+        }
+        if ((int)$user['enabled'] === 0) {
+            echo json_encode(['code' => 403, 'msg' => '账号已被禁用，请联系管理员'], 448);
+            exit;
+        }
+    
+        // 登录成功
+        // session_regenerate_id(true);
+        $_SESSION['admin_logged_in'] = true;
+        $_SESSION['admin_user']      = $user['username'];
+        $_SESSION['admin_id']        = (int)$user['id'];
+        $_SESSION['admin_enabled']   = (int)$user['enabled'];
+        $_SESSION['admin_is_admin']  = (int)$user['is_admin'];   // 👈 关键：是否管理员
+    
+        echo json_encode(['code' => 0, 'msg' => '登录成功'], 448);
         break;
 
         
@@ -372,7 +391,9 @@ switch ($action) {
             $total = $stmt->fetchColumn();
         
             // 查询数据
-            $sql = "SELECT e.*, c.name as category_name, 
+            $sql = "SELECT e.*, 
+                           c.name as category_name, 
+                           e.student_name,
                            CONCAT('/exam.php?id=', e.id) as exam_link
                     FROM exams e 
                     LEFT JOIN question_categories c ON e.category_id = c.id 
@@ -473,106 +494,205 @@ switch ($action) {
         break;
         
     // 生成考试
-    case 'generate_exam':
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            echo json_encode(['success' => false, 'message' => '请求方法不正确'],448);
-            exit;
-        }
+    // case 'generate_exam':
+    //     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    //         echo json_encode(['success' => false, 'message' => '请求方法不正确'],448);
+    //         exit;
+    //     }
 
-        // 获取POST参数
-        $title = isset($_POST['title']) ? trim($_POST['title']) : '';
-        $category_id = isset($_POST['category_id']) ? intval($_POST['category_id']) : 0;
-        $single_choice_count = isset($_POST['single_choice_count']) ? intval($_POST['single_choice_count']) : 0;
-        $multiple_choice_count = isset($_POST['multiple_choice_count']) ? intval($_POST['multiple_choice_count']) : 0;
-        $fill_blank_count = isset($_POST['fill_blank_count']) ? intval($_POST['fill_blank_count']) : 0;
-        $judge_count = isset($_POST['judge_count']) ? intval($_POST['judge_count']) : 0;
-        $duration = isset($_POST['duration']) ? intval($_POST['duration']) : 60;
-        $pass_score = isset($_POST['pass_score']) ? intval($_POST['pass_score']) : 60;
+    //     // 获取POST参数
+    //     $title = isset($_POST['title']) ? trim($_POST['title']) : '';
+    //     $category_id = isset($_POST['category_id']) ? intval($_POST['category_id']) : 0;
+    //     $single_choice_count = isset($_POST['single_choice_count']) ? intval($_POST['single_choice_count']) : 0;
+    //     $multiple_choice_count = isset($_POST['multiple_choice_count']) ? intval($_POST['multiple_choice_count']) : 0;
+    //     $fill_blank_count = isset($_POST['fill_blank_count']) ? intval($_POST['fill_blank_count']) : 0;
+    //     $judge_count = isset($_POST['judge_count']) ? intval($_POST['judge_count']) : 0;
+    //     $duration = isset($_POST['duration']) ? intval($_POST['duration']) : 60;
+    //     $pass_score = isset($_POST['pass_score']) ? intval($_POST['pass_score']) : 60;
 
-        // 验证参数
-        if (empty($title)) {
-            echo json_encode(['success' => false, 'message' => '考试标题不能为空'],448);
-            exit;
-        }
+    //     // 验证参数
+    //     if (empty($title)) {
+    //         echo json_encode(['success' => false, 'message' => '考试标题不能为空'],448);
+    //         exit;
+    //     }
 
-        if ($category_id <= 0) {
-            echo json_encode(['success' => false, 'message' => '请选择有效的题库分类'],448);
-            exit;
-        }
+    //     if ($category_id <= 0) {
+    //         echo json_encode(['success' => false, 'message' => '请选择有效的题库分类'],448);
+    //         exit;
+    //     }
 
-        $total_questions = $single_choice_count + $multiple_choice_count + $fill_blank_count + $judge_count;
-        if ($total_questions <= 0) {
-            echo json_encode(['success' => false, 'message' => '至少需要一道题目'],448);
-            exit;
-        }
+    //     $total_questions = $single_choice_count + $multiple_choice_count + $fill_blank_count + $judge_count;
+    //     if ($total_questions <= 0) {
+    //         echo json_encode(['success' => false, 'message' => '至少需要一道题目'],448);
+    //         exit;
+    //     }
 
+    //     try {
+    //         // 随机选择题目
+    //         $questions = [];
+            
+    //         // 单选题
+    //         if ($single_choice_count > 0) {
+    //             $stmt = $pdo->prepare("SELECT * FROM questions WHERE category_id = ? AND type = '单选题' ORDER BY RAND() LIMIT ?");
+    //             $stmt->bindValue(1, $category_id, PDO::PARAM_INT);
+    //             $stmt->bindValue(2, $single_choice_count, PDO::PARAM_INT);
+    //             $stmt->execute();
+    //             $single_choice_questions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    //             $questions = array_merge($questions, $single_choice_questions);
+    //         }
+            
+    //         // 多选题
+    //         if ($multiple_choice_count > 0) {
+    //             $stmt = $pdo->prepare("SELECT * FROM questions WHERE category_id = ? AND type = '多选题' ORDER BY RAND() LIMIT ?");
+    //             $stmt->bindValue(1, $category_id, PDO::PARAM_INT);
+    //             $stmt->bindValue(2, $multiple_choice_count, PDO::PARAM_INT);
+    //             $stmt->execute();
+    //             $multiple_choice_questions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    //             $questions = array_merge($questions, $multiple_choice_questions);
+    //         }
+            
+    //         // 填空题
+    //         if ($fill_blank_count > 0) {
+    //             $stmt = $pdo->prepare("SELECT * FROM questions WHERE category_id = ? AND type = '填空题' ORDER BY RAND() LIMIT ?");
+    //             $stmt->bindValue(1, $category_id, PDO::PARAM_INT);
+    //             $stmt->bindValue(2, $fill_blank_count, PDO::PARAM_INT);
+    //             $stmt->execute();
+    //             $fill_blank_questions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    //             $questions = array_merge($questions, $fill_blank_questions);
+    //         }
+            
+    //         // 判断题
+    //         if ($judge_count > 0) {
+    //             $stmt = $pdo->prepare("SELECT * FROM questions WHERE category_id = ? AND type = '判断题' ORDER BY RAND() LIMIT ?");
+    //             $stmt->bindValue(1, $category_id, PDO::PARAM_INT);
+    //             $stmt->bindValue(2, $judge_count, PDO::PARAM_INT);
+    //             $stmt->execute();
+    //             $judge_questions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    //             $questions = array_merge($questions, $judge_questions);
+    //         }
+            
+    //         // 检查是否获取到足够的题目
+    //         $actual_count = count($questions);
+    //         if ($actual_count < $total_questions) {
+    //             echo json_encode(['success' => false, 'message' => "题库中题目不足，需要{$total_questions}道题，只找到{$actual_count}道"]);
+    //             exit;
+    //         }
+            
+    //         // 保存考试信息
+    //         $stmt = $pdo->prepare("INSERT INTO exams (title, category_id, questions, duration, pass_score, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
+    //         $stmt->execute([
+    //             $title,
+    //             $category_id,
+    //             json_encode($questions),
+    //             $duration,
+    //             $pass_score
+    //         ]);
+            
+    //         echo json_encode(['success' => true, 'message' => '考试生成成功'],448);
+    //     } catch (Exception $e) {
+    //         echo json_encode(['success' => false, 'message' => '生成考试失败: ' . $e->getMessage()],448);
+    //     }
+    //     break;
+    case 'generate':
+        header('Content-Type: application/json; charset=utf-8');
         try {
-            // 随机选择题目
-            $questions = [];
-            
-            // 单选题
-            if ($single_choice_count > 0) {
-                $stmt = $pdo->prepare("SELECT * FROM questions WHERE category_id = ? AND type = '单选题' ORDER BY RAND() LIMIT ?");
+            // 读取参数
+            $catId        = isset($_POST['category_id']) ? intval($_POST['category_id']) : 0;
+            $num_single   = isset($_POST['num_single'])  ? intval($_POST['num_single'])  : 0;
+            $score_single = isset($_POST['score_single'])? floatval($_POST['score_single']) : 0;
+            $num_multi    = isset($_POST['num_multi'])   ? intval($_POST['num_multi'])   : 0;
+            $score_multi  = isset($_POST['score_multi']) ? floatval($_POST['score_multi']) : 0;
+            $num_judge    = isset($_POST['num_judge'])   ? intval($_POST['num_judge'])   : 0;
+            $score_judge  = isset($_POST['score_judge']) ? floatval($_POST['score_judge']) : 0;
+            $num_fill     = isset($_POST['num_fill'])    ? intval($_POST['num_fill'])    : 0;
+            $score_fill   = isset($_POST['score_fill'])  ? floatval($_POST['score_fill']) : 0;
+    
+            $student_name = isset($_POST['student_name']) ? trim($_POST['student_name']) : '';
+            if ($student_name !== '') {
+                $student_name = mb_substr($student_name, 0, 100, 'UTF-8');
+            } else {
+                $student_name = null; // 允许为 NULL
+            }
+    
+            // 计算总分
+            $totalScore = $num_single * $score_single
+                        + $num_multi  * $score_multi
+                        + $num_judge  * $score_judge
+                        + $num_fill   * $score_fill;
+    
+            if (abs($totalScore - 100) > 0.001) {
+                echo json_encode([
+                    'success' => false,
+                    'message' => "所有题目总分必须加起来等于100分，现在总分为: {$totalScore}"
+                ],448);
+                break;
+            }
+    
+            // 取题函数
+            $fetchQuestions = function($pdo, $category_id, $type, $limit) {
+                if ($limit <= 0) return [];
+                $stmt = $pdo->prepare("SELECT * FROM questions WHERE category_id = ? AND type = ? ORDER BY RAND() LIMIT ?");
                 $stmt->bindValue(1, $category_id, PDO::PARAM_INT);
-                $stmt->bindValue(2, $single_choice_count, PDO::PARAM_INT);
+                $stmt->bindValue(2, $type, PDO::PARAM_STR);
+                $stmt->bindValue(3, $limit, PDO::PARAM_INT);
                 $stmt->execute();
-                $single_choice_questions = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                $questions = array_merge($questions, $single_choice_questions);
+                return $stmt->fetchAll(PDO::FETCH_ASSOC);
+            };
+    
+            // 组卷
+            $exam = [];
+            if ($num_single > 0) {
+                foreach ($fetchQuestions($pdo, $catId, '单选题', $num_single) as $q) {
+                    $q['score'] = $score_single;
+                    $exam[] = $q;
+                }
             }
-            
-            // 多选题
-            if ($multiple_choice_count > 0) {
-                $stmt = $pdo->prepare("SELECT * FROM questions WHERE category_id = ? AND type = '多选题' ORDER BY RAND() LIMIT ?");
-                $stmt->bindValue(1, $category_id, PDO::PARAM_INT);
-                $stmt->bindValue(2, $multiple_choice_count, PDO::PARAM_INT);
-                $stmt->execute();
-                $multiple_choice_questions = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                $questions = array_merge($questions, $multiple_choice_questions);
+            if ($num_multi > 0) {
+                foreach ($fetchQuestions($pdo, $catId, '多选题', $num_multi) as $q) {
+                    $q['score'] = $score_multi;
+                    $exam[] = $q;
+                }
             }
-            
-            // 填空题
-            if ($fill_blank_count > 0) {
-                $stmt = $pdo->prepare("SELECT * FROM questions WHERE category_id = ? AND type = '填空题' ORDER BY RAND() LIMIT ?");
-                $stmt->bindValue(1, $category_id, PDO::PARAM_INT);
-                $stmt->bindValue(2, $fill_blank_count, PDO::PARAM_INT);
-                $stmt->execute();
-                $fill_blank_questions = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                $questions = array_merge($questions, $fill_blank_questions);
+            if ($num_judge > 0) {
+                foreach ($fetchQuestions($pdo, $catId, '判断题', $num_judge) as $q) {
+                    $q['score'] = $score_judge;
+                    $exam[] = $q;
+                }
             }
-            
-            // 判断题
-            if ($judge_count > 0) {
-                $stmt = $pdo->prepare("SELECT * FROM questions WHERE category_id = ? AND type = '判断题' ORDER BY RAND() LIMIT ?");
-                $stmt->bindValue(1, $category_id, PDO::PARAM_INT);
-                $stmt->bindValue(2, $judge_count, PDO::PARAM_INT);
-                $stmt->execute();
-                $judge_questions = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                $questions = array_merge($questions, $judge_questions);
+            if ($num_fill > 0) {
+                foreach ($fetchQuestions($pdo, $catId, '填空题', $num_fill) as $q) {
+                    $q['score'] = $score_fill;
+                    $exam[] = $q;
+                }
             }
-            
-            // 检查是否获取到足够的题目
-            $actual_count = count($questions);
-            if ($actual_count < $total_questions) {
-                echo json_encode(['success' => false, 'message' => "题库中题目不足，需要{$total_questions}道题，只找到{$actual_count}道"]);
-                exit;
-            }
-            
-            // 保存考试信息
-            $stmt = $pdo->prepare("INSERT INTO exams (title, category_id, questions, duration, pass_score, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
-            $stmt->execute([
-                $title,
-                $category_id,
-                json_encode($questions),
-                $duration,
-                $pass_score
+    
+            $examJson = json_encode($exam, JSON_UNESCAPED_UNICODE);
+    
+            // 写入 exams（包含 student_name）
+            $stmt = $pdo->prepare("INSERT INTO exams (category_id, exam_data, student_name) VALUES (?, ?, ?)");
+            $stmt->execute([$catId, $examJson, $student_name]);
+            $examId = $pdo->lastInsertId();
+    
+            // 生成链接
+            $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? "https://" : "http://";
+            $host = $_SERVER['HTTP_HOST'] ?? '';
+            $examLink = $protocol . $host . "/exam.php?id=" . $examId;
+    
+            echo json_encode([
+                'success'       => true,
+                'exam_id'       => $examId,
+                'exam_link'     => $examLink,
+                'student_name'  => $student_name,
+                'total_score'   => $totalScore
             ]);
-            
-            echo json_encode(['success' => true, 'message' => '考试生成成功'],448);
         } catch (Exception $e) {
-            echo json_encode(['success' => false, 'message' => '生成考试失败: ' . $e->getMessage()],448);
+            echo json_encode([
+                'success' => false,
+                'message' => $e->getMessage()
+            ]);
         }
-        break;
-        
+    break;
+
     // 获取考试记录
     case 'exam_records':
         // 获取分页参数
@@ -868,7 +988,7 @@ switch ($action) {
 
         
         if (!isset($_SESSION['admin_user'])) {
-            echo json_encode(['code'=>1, 'msg'=>'未登录']);
+            echo json_encode(['code'=>1, 'msg'=>'未登录'],448);
             exit;
         }
         
@@ -878,12 +998,12 @@ switch ($action) {
         $confirmPassword = $_POST['confirm_password'] ?? '';
         
         if (!$oldPassword || !$newPassword || !$confirmPassword) {
-            echo json_encode(['code'=>1, 'msg'=>'请填写所有字段']);
+            echo json_encode(['code'=>1, 'msg'=>'请填写所有字段'],448);
             exit;
         }
         
         if ($newPassword !== $confirmPassword) {
-            echo json_encode(['code'=>1, 'msg'=>'新密码和确认密码不一致']);
+            echo json_encode(['code'=>1, 'msg'=>'新密码和确认密码不一致'],448);
             exit;
         }
         
@@ -898,11 +1018,11 @@ switch ($action) {
             $row = $stmt->fetch();
         
             if (!$row) {
-                echo json_encode(['code'=>1, 'msg'=>'用户不存在']);
+                echo json_encode(['code'=>1, 'msg'=>'用户不存在'],448);
                 exit;
             }
             if ($row['password'] !== md5($oldPassword)) {
-                echo json_encode(['code'=>1, 'msg'=>'旧密码错误']);
+                echo json_encode(['code'=>1, 'msg'=>'旧密码错误'],448);
                 exit;
             }
         
@@ -910,14 +1030,14 @@ switch ($action) {
             $stmt = $pdo->prepare("UPDATE admin_users SET password = ? WHERE username = ?");
             $stmt->execute([$newPwdHash, $_SESSION['admin_user']]);
         
-            echo json_encode(['code'=>0, 'msg'=>'密码修改成功']);
+            echo json_encode(['code'=>0, 'msg'=>'密码修改成功'],448);
         } catch (PDOException $e) {
-            echo json_encode(['code'=>1, 'msg'=>'数据库错误: '.$e->getMessage()]);
+            echo json_encode(['code'=>1, 'msg'=>'数据库错误: '.$e->getMessage()],448);
         }
         break;
     case 'create_user':
         if (!isset($_SESSION['admin_user']) || $_SESSION['admin_user'] !== 'admin') {
-            echo json_encode(['code' => 1, 'msg' => '无权限操作']);
+            echo json_encode(['code' => 1, 'msg' => '无权限操作'],448);
             exit;
         }
         
@@ -927,7 +1047,7 @@ switch ($action) {
             : '123456';
         
         if ($username === '') {
-            echo json_encode(['code' => 1, 'msg' => '用户名不能为空']);
+            echo json_encode(['code' => 1, 'msg' => '用户名不能为空'],448);
             exit;
         }
         
@@ -941,7 +1061,7 @@ switch ($action) {
             $stmt = $pdo->prepare("SELECT COUNT(*) FROM admin_users WHERE username = ?");
             $stmt->execute([$username]);
             if ($stmt->fetchColumn() > 0) {
-                echo json_encode(['code' => 1, 'msg' => '用户名已存在']);
+                echo json_encode(['code' => 1, 'msg' => '用户名已存在'],448);
                 exit;
             }
         
@@ -950,9 +1070,222 @@ switch ($action) {
             $stmt = $pdo->prepare("INSERT INTO admin_users (username, password) VALUES (?, ?)");
             $stmt->execute([$username, $hashed]);
         
-            echo json_encode(['code' => 0, 'msg' => '用户创建成功']);
+            echo json_encode(['code' => 0, 'msg' => '用户创建成功'],448);
         } catch (PDOException $e) {
-            echo json_encode(['code' => 1, 'msg' => '数据库错误: ' . $e->getMessage()]);
+            echo json_encode(['code' => 1, 'msg' => '数据库错误: ' . $e->getMessage()],448);
+        }
+        break;
+    case 'update_student_name':
+    header('Content-Type: application/json; charset=utf-8');
+    try {
+        $id = isset($_POST['id']) ? intval($_POST['id']) : 0;
+        $student_name = isset($_POST['student_name']) ? trim($_POST['student_name']) : '';
+
+        if ($id <= 0) {
+            echo json_encode(['success' => false, 'message' => '参数 id 无效'],448); exit;
+        }
+
+        // 限长保护（与前端一致）
+        if ($student_name !== '') {
+            // mb_substr 防止多字节截断
+            $student_name = mb_substr($student_name, 0, 100, 'UTF-8');
+        } else {
+            // 允许清空为 NULL
+            $student_name = null;
+        }
+
+        // 使用命名参数，兼容 NULL
+        $sql = "UPDATE exams SET student_name = :name WHERE id = :id";
+        $stmt = $pdo->prepare($sql);
+        if ($student_name === null) {
+            $stmt->bindValue(':name', null, PDO::PARAM_NULL);
+        } else {
+            $stmt->bindValue(':name', $student_name, PDO::PARAM_STR);
+        }
+        $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+        $stmt->execute();
+
+        echo json_encode(['success' => true],448);
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()],448);
+    }
+        break;
+    case 'get_admin_users':
+        require_admin_priv(); // 👈 仅管理员
+        try {
+            $page   = max(1, (int)($_GET['page']  ?? $_POST['page']  ?? 1));
+            $limit  = max(1, (int)($_GET['limit'] ?? $_POST['limit'] ?? 20));
+            $offset = ($page - 1) * $limit;
+    
+            $username = trim((string)($_GET['username'] ?? $_POST['username'] ?? ''));
+            $enabled  = $_GET['enabled'] ?? $_POST['enabled'] ?? '';
+    
+            $wheres = [];
+            $params = [];
+    
+            if ($username !== '') {
+                $wheres[] = 'username LIKE ?';
+                $params[] = '%' . $username . '%';
+            }
+            if ($enabled !== '' && ($enabled === '0' || $enabled === '1')) {
+                $wheres[] = 'enabled = ?';
+                $params[] = (int)$enabled;
+            }
+    
+            $whereSql = $wheres ? ('WHERE ' . implode(' AND ', $wheres)) : '';
+    
+            // 总数
+            $cntSql = "SELECT COUNT(*) FROM admin_users {$whereSql}";
+            $stmt = $pdo->prepare($cntSql);
+            $stmt->execute($params);
+            $total = (int)$stmt->fetchColumn();
+    
+            // 数据（👉 带上 is_admin）
+            $listSql = "SELECT id, username, enabled, is_admin, created_at
+                        FROM admin_users
+                        {$whereSql}
+                        ORDER BY id DESC
+                        LIMIT ? OFFSET ?";
+            $stmt = $pdo->prepare($listSql);
+    
+            $bindIndex = 1;
+            foreach ($params as $p) $stmt->bindValue($bindIndex++, $p);
+            $stmt->bindValue($bindIndex++, $limit, PDO::PARAM_INT);
+            $stmt->bindValue($bindIndex++, $offset, PDO::PARAM_INT);
+    
+            $stmt->execute();
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+            echo json_encode(['code'=>0,'msg'=>'','count'=>$total,'data'=>$rows],448);
+        } catch (Exception $e) {
+            echo json_encode(['code'=>0,'msg'=>'查询失败：'.$e->getMessage(),'count'=>0,'data'=>[]],448);
+        }
+        break;
+    case 'save_admin_user':
+        require_admin_priv(); // 👈 仅管理员
+        header('Content-Type: application/json; charset=utf-8');
+        try {
+            $id       = isset($_POST['id']) ? (int)$_POST['id'] : 0;
+            $username = trim($_POST['username'] ?? '');
+            $password = trim($_POST['password'] ?? '');
+            $enabled  = isset($_POST['enabled']) ? (int)$_POST['enabled'] : 1;
+            $is_admin = isset($_POST['is_admin']) ? (int)$_POST['is_admin'] : 0;
+    
+            if ($username === '') { echo json_encode(['success'=>false,'message'=>'账号不能为空'],448); break; }
+            if ($enabled !== 0 && $enabled !== 1) $enabled = 1;
+            if ($is_admin !== 0 && $is_admin !== 1) $is_admin = 0;
+    
+            // 用户名唯一
+            if ($id > 0) {
+                $stmt = $pdo->prepare("SELECT COUNT(*) FROM admin_users WHERE username = ? AND id <> ?");
+                $stmt->execute([$username, $id]);
+            } else {
+                $stmt = $pdo->prepare("SELECT COUNT(*) FROM admin_users WHERE username = ?");
+                $stmt->execute([$username]);
+            }
+            if ((int)$stmt->fetchColumn() > 0) {
+                echo json_encode(['success'=>false,'message'=>'账号已存在'],448); break;
+            }
+    
+            // admin 账号保护：不可禁用、不可取消管理员
+            if ($id > 0) {
+                $stmt = $pdo->prepare("SELECT username FROM admin_users WHERE id = ?");
+                $stmt->execute([$id]);
+                $old = $stmt->fetch(PDO::FETCH_ASSOC);
+                if ($old && $old['username'] === 'admin') {
+                    $enabled = 1;
+                    $is_admin = 1;
+                }
+            }
+            if ($username === 'admin') {
+                $enabled = 1;
+                $is_admin = 1;
+            }
+    
+            if ($id > 0) {
+                // 编辑
+                if ($password !== '') {
+                    $hashed = md5($password);
+                    $sql = "UPDATE admin_users SET username = ?, password = ?, enabled = ?, is_admin = ? WHERE id = ?";
+                    $stmt = $pdo->prepare($sql);
+                    $stmt->execute([$username, $hashed, $enabled, $is_admin, $id]);
+                } else {
+                    $sql = "UPDATE admin_users SET username = ?, enabled = ?, is_admin = ? WHERE id = ?";
+                    $stmt = $pdo->prepare($sql);
+                    $stmt->execute([$username, $enabled, $is_admin, $id]);
+                }
+            } else {
+                // 新增（密码留空则默认 123456）
+                $hashed = md5($password === '' ? '123456' : $password);
+                $sql = "INSERT INTO admin_users (username, password, enabled, is_admin, created_at)
+                        VALUES (?, ?, ?, ?, NOW())";
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute([$username, $hashed, $enabled, $is_admin]);
+            }
+    
+            echo json_encode(['success'=>true],448);
+        } catch (Exception $e) {
+            echo json_encode(['success'=>false, 'message'=>$e->getMessage()],448);
+        }
+        break;
+    case 'toggle_admin_user':
+        require_admin_priv(); // 👈 仅管理员
+        header('Content-Type: application/json; charset=utf-8');
+        try {
+            $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
+            $enabled = isset($_POST['enabled']) ? (int)$_POST['enabled'] : 1;
+            if ($id <= 0) { echo json_encode(['success' => false, 'message' => '参数错误'],448); break; }
+            if ($enabled !== 0 && $enabled !== 1) $enabled = 1;
+    
+            // admin 不可禁用
+            $stmt = $pdo->prepare("SELECT username FROM admin_users WHERE id = ?");
+            $stmt->execute([$id]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$row) { echo json_encode(['success' => false, 'message' => '用户不存在'],448); break; }
+            if ($row['username'] === 'admin' && $enabled == 0) {
+                echo json_encode(['success' => false, 'message' => '系统管理员账号不可禁用'],448); break;
+            }
+    
+            $stmt = $pdo->prepare("UPDATE admin_users SET enabled = ? WHERE id = ?");
+            $stmt->execute([$enabled, $id]);
+    
+            echo json_encode(['success' => true],448);
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'message' => $e->getMessage()],448);
+        }
+        break;
+    case 'delete_admin_users':
+        require_admin_priv(); // 👈 仅管理员
+        header('Content-Type: application/json; charset=utf-8');
+        try {
+            $idsStr = trim($_POST['ids'] ?? '');
+            if ($idsStr === '') { echo json_encode(['success' => false, 'message' => '缺少参数 ids'],448); break; }
+    
+            $idArr = array_values(array_filter(array_map('intval', explode(',', $idsStr))));
+            if (empty($idArr)) { echo json_encode(['success' => false, 'message' => '参数 ids 无效'],448); break; }
+    
+            // 过滤掉 admin
+            $inPlace = implode(',', array_fill(0, count($idArr), '?'));
+            $stmt = $pdo->prepare("SELECT id, username FROM admin_users WHERE id IN ($inPlace)");
+            $stmt->execute($idArr);
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+            $deletables = [];
+            foreach ($rows as $r) {
+                if ($r['username'] !== 'admin') $deletables[] = (int)$r['id'];
+            }
+    
+            $deleted = 0;
+            if (!empty($deletables)) {
+                $inDel = implode(',', array_fill(0, count($deletables), '?'));
+                $stmt = $pdo->prepare("DELETE FROM admin_users WHERE id IN ($inDel)");
+                $stmt->execute($deletables);
+                $deleted = $stmt->rowCount();
+            }
+    
+            echo json_encode(['success' => true, 'deleted' => $deleted],448);
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'message' => $e->getMessage()],448);
         }
         break;
     default:

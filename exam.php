@@ -8,7 +8,7 @@ if (!$examId) {
 }
 
 // 读取考试数据和完成状态
-$stmt = $pdo->prepare("SELECT exam_data, is_finished FROM exams WHERE id = ?");
+$stmt = $pdo->prepare("SELECT exam_data, is_finished , student_name FROM exams WHERE id = ?");
 $stmt->execute([$examId]);
 $examRow = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -17,11 +17,13 @@ if (!$examRow) {
 }
 
 $examDataJson = $examRow['exam_data'];
+$name = $examRow['student_name'];
+// echo json_encode($name,448);
 $isFinished = (int)$examRow['is_finished'];
 
 $examData = json_decode($examDataJson, true);
 if (!$examData) {
-    die("考试数据格式错误");
+    die("考试数据格式错误 请检查该题库的题目类型是否存在");
 }
 
 // 初始化答题会话数据
@@ -48,7 +50,7 @@ if ($isFinished) {
     foreach ($examData as $q) {
         $totalScore += $q['score'];
     }
-    $resultMessage = "<h3>考试结束！您的得分：{$score} / {$totalScore} 分</h3>";
+    $resultMessage = "<h3>考试结束！【". $name. "】您的得分：{$score} / {$totalScore} 分</h3>";
     $showResult = true;
 
 } elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -157,12 +159,13 @@ layui.use(['layer'], function(){
             <?php //echo json_encode($q,448)?>
             <?php if (!empty($q['image'])): ?>
                 <div style="margin:12px 0; text-align:center;">
-                    <img src="<?= htmlspecialchars($q['image']) ?>" 
-                         alt="题目图片" 
-                         style="max-width:300px; width:80%; height:auto; border:1px solid #ddd; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.1);">
+                  <img src="<?= htmlspecialchars($q['image']) ?>" 
+                       alt="题目图片" 
+                       class="preview-img"
+                       style="max-width:300px; width:80%; height:auto; border:1px solid #ddd; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.1); cursor:pointer;">
                 </div>
             <?php endif; ?>
-
+            <!--题目图片-->
             
             
             <?php
@@ -301,15 +304,16 @@ layui.use(['form'], function(){
             <?= nl2br(htmlspecialchars($q['question'])) ?>
         </div>
         
-        
+<!--题目图片(结束)-->
 <?php if (!empty($q['image'])): ?>
-    <div style="margin:12px 0; text-align:center;">
-        <img src="<?= htmlspecialchars($q['image']) ?>" 
-             alt="题目图片" 
-             style="max-width:300px; width:80%; height:auto; border:1px solid #ddd; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.1);">
-    </div>
+<div style="margin:12px 0; text-align:center;">
+  <img src="<?= htmlspecialchars($q['image']) ?>" 
+       alt="题目图片" 
+       class="preview-img"   
+       style="max-width:300px; width:80%; height:auto; border:1px solid #ddd; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.1); cursor:pointer;">
+</div>
 <?php endif; ?>
-
+<!--题目图片(结束)-->
 
 
         <?php
@@ -335,4 +339,33 @@ layui.use(['form'], function(){
 <?php endif; ?>
 
 </body>
+<script>
+layui.use(['layer'], function(){
+  var layer = layui.layer;
+
+  document.querySelectorAll('.preview-img').forEach(function(img){
+    // 点击放大
+    img.addEventListener('click', function(){
+      layer.photos({
+        photos: {
+          "title": "查看大图",
+          "data": [{ "src": img.src, "thumb": img.src }]
+        },
+        anim: 5
+      });
+    });
+
+    // 悬浮/触摸提示
+    img.addEventListener('mouseenter', function(){
+      this.tipIndex = layer.tips('点击图片查看大图', img, {
+        tips: [1, '#333'], // 方向和颜色
+        time: 0            // 0 = 不自动关闭
+      });
+    });
+    img.addEventListener('mouseleave', function(){
+      layer.close(this.tipIndex);
+    });
+  });
+});
+</script>
 </html>

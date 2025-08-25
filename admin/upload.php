@@ -32,10 +32,10 @@ $categories = $pdo->query("SELECT id, name FROM question_categories")->fetchAll(
               <?php endforeach; ?>
             </select>
           </div>
-          <button type="button" class="layui-btn layui-btn-primary" id="addCategoryBtn" style="margin-left: 10px;">
+          <button type="button" class="layui-btn" id="addCategoryBtn" style="margin-left: 10px;">
             新增类别
           </button>
-          <button type="button" class="layui-btn layui-btn-primary" id="delCategoryBtn" style="margin-left: 10px;">
+          <button type="button" class="layui-btn layui-bg-red" id="delCategoryBtn" style="margin-left: 10px;">
             删除类别
           </button>
         </div>
@@ -190,7 +190,7 @@ layui.use(['form', 'layer'], function(){
   $('#uploadBtn').on('click', function() {
     var categoryId = $('#category_id').val();
     var fileInput = $('#excel_file')[0].files[0];
-
+    var load = layer.load();
     if (!categoryId) {
       layer.msg('请选择分类',{icon:2});
       return;
@@ -214,6 +214,7 @@ layui.use(['form', 'layer'], function(){
       processData: false,
       contentType: false,
       success: function(res) {
+          layer.close(load);
         if (res.success) {
           layer.alert(res.message || '上传成功',{icon:1});
           // 清空下拉框选中项
@@ -223,11 +224,13 @@ layui.use(['form', 'layer'], function(){
           // 同时清空文件选择显示
           $('#excel_file').val('');
           $('#fileNameDisplay').text('未选择文件');
+          
         } else {
           layer.alert('上传失败：' + (res.message || '未知错误'));
         }
       },
       error: function() {
+          layer.close(load);
         layer.alert('上传失败，请检查网络或服务器问题');
       }
     });

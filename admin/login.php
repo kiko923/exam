@@ -165,9 +165,14 @@ layui.use(['form', 'layer'], function(){
             location.href = ''; // 登录成功刷新当前页或跳首页
           });
         } else {
-          // 刷新验证码
-          $('#captcha_img').attr('src', 'ajax.php?act=captcha&' + Math.random());
-          layer.msg(res.msg, {time:500,icon: 2});
+            // 刷新验证码
+            $('#captcha_img').attr('src', 'ajax.php?act=captcha&' + Math.random());
+            if(res.code === 403){
+                layer.alert(res.msg, {icon: 2});
+            }else{
+                layer.msg(res.msg, {time:1000,icon: 2});
+            }
+          
         }
       },
       error: function(){

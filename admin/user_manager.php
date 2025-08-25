@@ -148,15 +148,16 @@ layui.use(['table', 'form', 'layer'], function(){
     cellMinWidth: 80,
     cols: [[
       {type: 'checkbox', fixed: 'left'},
-      {field: 'id', title: 'ID', sort: true, width: 80},
-      {field: 'username', title: '账号', minWidth: 160},
-      {field: 'is_admin', title: '角色', width: 100, templet: function(d){
+      {field: 'id', title: 'ID', sort: true, width: 50},
+      {field: 'is_admin', title: '角色', width: 80, templet: function(d){
         return d.is_admin == 1
           ? '<span class="layui-badge layui-bg-blue">管理员</span>'
           : '<span class="layui-badge-rim">普通</span>';
       }},
-      {field: 'enabled', title: '状态', width: 120, templet: '#enabledTpl'},
-      {field: 'created_at', title: '创建时间', minWidth: 160, sort: true},
+      {field: 'username', title: '账号', minWidth: 160},
+      
+      {field: 'enabled', title: '状态', width: 90, templet: '#enabledTpl'},
+      {field: 'created_at', title: '创建时间', width: 160, sort: true},
       {title: '操作', toolbar: '#rowToolbar', fixed: 'right', width: 180}
     ]],
     page: true,

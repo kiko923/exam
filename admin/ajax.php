@@ -236,70 +236,40 @@ switch ($action) {
         break;
         
     case 'login':
-    // 1) 获取表单字段
-    $username = $_POST['username'] ?? '';
-    $password = $_POST['password'] ?? '';
-
-    // —— Geetest 三件套（前端必须传）——
-    $gt_challenge = $_POST['geetest_challenge'] ?? '';
-    $gt_validate  = $_POST['geetest_validate']  ?? '';
-    $gt_seccode   = $_POST['geetest_seccode']   ?? '';
-
-    // 2) 基础校验
-    if ($username === '' || $password === '') {
-        echo json_encode(['code' => 1, 'msg' => '请填写用户名和密码'], 448);
-        exit;
-    }
-    if ($gt_challenge === '' || $gt_validate === '' || $gt_seccode === '') {
-        echo json_encode(['code' => 1, 'msg' => '请先完成人机验证'], 448);
-        exit;
-    }
-
-    // 3) 服务端调用极验 Demo 验证接口
-    $url  = 'https://demos.geetest.com/gt/validate-fullpage';
-    $post = http_build_query([
-        'geetest_challenge' => $gt_challenge,
-        'geetest_validate'  => $gt_validate,
-        'geetest_seccode'   => $gt_seccode,
-    ]);
-    $gt_resp = get_curl($url,$post);
-
-    if ($gt_resp === false) {
-        echo json_encode(['code' => 1, 'msg' => '验证码校验失败：网络错误'], 448);
-        exit;
-    }
-    // echo $gt_resp;
-    $gt_json = json_decode($gt_resp, true);
-    if (empty($gt_json['status']) || $gt_json['status'] !== 'success') {
-        // 失败时 demos 接口一般返回 {status:"fail", ...}
-        echo json_encode(['code' => 1, 'msg' => '验证码错误'], 448);
-        exit;
-    }
-
-    // 4) 通过人机验证，继续账号密码校验
-    $passwordHashed = md5($password);
-    $stmt = $pdo->prepare("SELECT id, username, password, enabled, is_admin FROM admin_users WHERE username = ? AND password = ?");
-    $stmt->execute([$username, $passwordHashed]);
-    $user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    if (!$user) {
-        echo json_encode(['code' => 1, 'msg' => '用户名或密码错误'], 448);
-        exit;
-    }
-    if ((int)$user['enabled'] === 0) {
-        echo json_encode(['code' => 403, 'msg' => '账号已被禁用，请联系管理员'], 448);
-        exit;
-    }
-
-    // 5) 登录成功
-    $_SESSION['admin_logged_in'] = true;
-    $_SESSION['admin_user']      = $user['username'];
-    $_SESSION['admin_id']        = (int)$user['id'];
-    $_SESSION['admin_enabled']   = (int)$user['enabled'];
-    $_SESSION['admin_is_admin']  = (int)$user['is_admin'];
-
-    echo json_encode(['code' => 0, 'msg' => '登录成功'], 448);
-    break;
+        $username = $_POST['username'] ?? '';
+        $password = $_POST['password'] ?? '';
+        $captcha  = $_POST['captcha'] ?? '';
+    
+        if (!isset($_SESSION['captcha_code']) || strtolower($captcha) !== strtolower($_SESSION['captcha_code'])) {
+            echo json_encode(['code' => 1, 'msg' => '验证码错误'], 448);
+            exit;
+        }
+    
+        $passwordHashed = md5($password);
+        // 👇 加上 is_admin
+        $stmt = $pdo->prepare("SELECT id, username, password, enabled, is_admin FROM admin_users WHERE username = ? AND password = ?");
+        $stmt->execute([$username, $passwordHashed]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+        if (!$user) {
+            echo json_encode(['code' => 1, 'msg' => '用户名或密码错误'], 448);
+            exit;
+        }
+        if ((int)$user['enabled'] === 0) {
+            echo json_encode(['code' => 403, 'msg' => '账号已被禁用，请联系管理员'], 448);
+            exit;
+        }
+    
+        // 登录成功
+        // session_regenerate_id(true);
+        $_SESSION['admin_logged_in'] = true;
+        $_SESSION['admin_user']      = $user['username'];
+        $_SESSION['admin_id']        = (int)$user['id'];
+        $_SESSION['admin_enabled']   = (int)$user['enabled'];
+        $_SESSION['admin_is_admin']  = (int)$user['is_admin'];   // 👈 关键：是否管理员
+    
+        echo json_encode(['code' => 0, 'msg' => '登录成功'], 448);
+        break;
 
 
         

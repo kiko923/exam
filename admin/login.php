@@ -149,7 +149,7 @@ layui.use(['form','layer'], function(){
         layer.close(l);
         if(res.code === 0 && res.url){
           // AJAX 请求后仍需打开授权页面
-          window.open(res.url,'_blank');
+          window.location.href= res.url;
         } else {
           layer.msg(res.msg || '获取登录地址失败', {icon: 2});
         }

@@ -752,34 +752,50 @@ switch ($action) {
         
         // 验证码生成
     case 'captcha':
-            $width = 120;
-            $height = 40;
+            $width = 1220;
+            $height = 380;
             $image = imagecreatetruecolor($width, $height);
         
-            // 设置颜色
-            $bg_color = imagecolorallocate($image, 255, 255, 255); // 白色背景
-            $text_color = imagecolorallocate($image, 0, 0, 0); // 黑色文字
+            // 开启抗锯齿
+            imageantialias($image, true);
+        
+            // 背景和文字颜色
+            $bg_color   = imagecolorallocate($image, 255, 255, 255); // 白色
+            $text_color = imagecolorallocate($image, 0, 0, 0);       // 黑色
+            $shadow     = imagecolorallocate($image, 120, 120, 120); // 阴影/描边
         
             // 填充背景
             imagefilledrectangle($image, 0, 0, $width, $height, $bg_color);
         
-            // 生成随机验证码
+            // 随机验证码
             $code = substr(str_shuffle("0123456789"), 0, 4);
             $_SESSION['captcha_code'] = $code;
         
-            // 使用自定义字体
-            $font = '../assets/font/elephant.ttf'; // 指向你的 .ttf 字体文件
-        
+            // 字体文件路径
+            $font = '../assets/font/微软雅黑.ttf';//微软vista黑体.ttf
             if (!file_exists($font)) {
                 die('Font file not found!');
             }
         
-            // 设置字体大小
-            $fontSize = 27;
-            $x = 10;
-            $y = 30;
+            // 自适应字体大小（高度的 70% 左右）
+            $fontSize = intval($height * 0.9);
         
-            // 绘制验证码
+            // 计算文字总宽度（大致估算）
+            $bbox = imagettfbbox($fontSize, 0, $font, $code);
+            $text_width  = $bbox[2] - $bbox[0];
+            $text_height = $bbox[1] - $bbox[7];
+        
+            // 居中计算
+            $x = ($width - $text_width) / 2;
+            $y = ($height + $text_height) / 2;
+        
+            // 加粗/描边效果（提高清晰度）
+            $offsets = [[-1,0],[1,0],[0,-1],[0,1]];
+            foreach ($offsets as $o) {
+                imagettftext($image, $fontSize, 0, $x + $o[0], $y + $o[1], $shadow, $font, $code);
+            }
+        
+            // 绘制文字
             imagettftext($image, $fontSize, 0, $x, $y, $text_color, $font, $code);
         
             header('Content-Type: image/png');

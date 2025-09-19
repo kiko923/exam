@@ -67,7 +67,12 @@ if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true
         </div>
         <div class="layui-col-xs5">
           <div style="margin-left: 10px;">
-            <img id="captcha_img" src="ajax.php?act=captcha" style="height:38px; width:122px; object-fit:cover; cursor:pointer;" title="点击刷新验证码" alt="验证码" />
+            <!-- 去掉 onclick，避免 refreshCaptcha 未定义 -->
+            <img id="captcha_img"
+                 src="ajax.php?act=captcha"
+                 style="height:38px; width:122px; object-fit:cover; cursor:pointer;"
+                 title="点击刷新验证码"
+                 alt="验证码" />
           </div>
         </div>
       </div>
@@ -96,6 +101,42 @@ if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true
 layui.use(['form','layer'], function(){
   var form = layui.form, layer = layui.layer;
 
+  // 刷新验证码函数（全局可用）
+  window.refreshCaptcha = function () {
+  // 开启 loading 动画（type=2 是旋转小圈）
+  var loadingIndex = layer.load(1);
+
+  $.ajax({
+    url: 'ajax.php?act=captcha',
+    type: 'GET',
+    xhrFields: { responseType: 'blob' }, // 返回二进制数据
+    cache: false,
+    success: function (data) {
+      const $img = $('#captcha_img');
+
+      // 清理旧的 blob URL，避免内存泄漏
+      const oldUrl = $img.data('bloburl');
+      if (oldUrl) {
+        try { URL.revokeObjectURL(oldUrl); } catch (e) {}
+      }
+
+      const url = URL.createObjectURL(data);
+      $img.attr('src', url).data('bloburl', url);
+
+      // 请求完成后关闭动画
+      layer.close(loadingIndex);
+    },
+    error: function () {
+      // 请求失败也要关闭动画
+      layer.close(loadingIndex);
+      layer.msg('验证码加载失败，请重试', {icon: 2});
+    }
+  });
+};
+
+  // 点击验证码图片时刷新
+  $('#captcha_img').on('click', window.refreshCaptcha);
+
   // 登录表单提交
   form.on('submit(demo-login)', function(data){
     var formData = data.field;
@@ -108,7 +149,6 @@ layui.use(['form','layer'], function(){
       success: function(res){
         if(res.code === 0){
           layer.msg('登录成功', {icon: 1, time: 1000}, function(){
-            // 登录成功后 AJAX 请求主页（防止直接 location.href）
             $.ajax({
               url: './',
               type: 'GET',
@@ -117,11 +157,12 @@ layui.use(['form','layer'], function(){
             });
           });
         } else {
-          refreshCaptcha();
+          // 登录失败刷新验证码
+          window.refreshCaptcha();
           if(res.code === 403){
             layer.alert(res.msg, {icon: 2});
           } else {
-            layer.msg(res.msg, {time:1000,icon:2});
+            layer.msg(res.msg || '登录失败', {time:1000,icon:2});
           }
         }
       },
@@ -132,13 +173,7 @@ layui.use(['form','layer'], function(){
     return false;
   });
 
-  // 刷新验证码 AJAX
-  function refreshCaptcha(){
-    $('#captcha_img').attr('src','ajax.php?act=captcha&'+Math.random());
-  }
-  $('#captcha_img').on('click', refreshCaptcha);
-
-  // 微信登录 AJAX
+  // 微信登录
   $('#wechat-login').on('click', function(){
     var l = layer.load();
     $.ajax({
@@ -148,8 +183,7 @@ layui.use(['form','layer'], function(){
       success: function(res){
         layer.close(l);
         if(res.code === 0 && res.url){
-          // AJAX 请求后仍需打开授权页面
-          window.location.href= res.url;
+          window.location.href = res.url;
         } else {
           layer.msg(res.msg || '获取登录地址失败', {icon: 2});
         }
@@ -163,5 +197,6 @@ layui.use(['form','layer'], function(){
 
 });
 </script>
+
 </body>
 </html>

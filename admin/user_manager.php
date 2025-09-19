@@ -262,25 +262,29 @@ layui.use(['table', 'form', 'layer'], function(){
       type: 1,
       title: isEdit ? '编辑用户' : '新增用户',
       area: ['520px', '420px'],
-      content: $('#editFormTpl'),
-      success: function(){
-        // 填充表单
-        form.val('editForm', {
+      // 使用模板的 HTML 字符串，避免原始节点被移出并在关闭后显示在底部
+      content: $('#editFormTpl').html(),
+      success: function(layero, index){
+        var $box = $(layero);
+        // 填充表单（按 lay-filter 定位）
+        var dataToSet = {
           id: (row && row.id) || '',
           username: (row && row.username) || '',
-          password: '', // 编辑时清空，留空表示不改密码
+          password: '',
           enabled: (row ? (row.enabled == 1) : true)
-        });
-        // 先按行数据设置 is_admin 复选框（无 row=新增时默认不勾选）
-        $('[name="is_admin"]').prop('checked', !!(row && row.is_admin == 1));
-        
-        // 如果是 admin 账号，强制管理员且不可改（可选的保护）
+        };
+        // 需要临时将 form 置入文档后再设值
+        form.val('editForm', dataToSet);
+
+        // 设置 is_admin 勾选与可用态（作用域限定到弹层内容）
+        var $isAdmin = $box.find('[name="is_admin"]');
+        $isAdmin.prop('checked', !!(row && row.is_admin == 1));
         if (row && row.username === 'admin') {
-          $('[name="is_admin"]').prop('checked', true).prop('disabled', true);
+          $isAdmin.prop('checked', true).prop('disabled', true);
         } else {
-          $('[name="is_admin"]').prop('disabled', false);
+          $isAdmin.prop('disabled', false);
         }
-        
+
         form.render();
       }
     });

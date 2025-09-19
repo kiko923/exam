@@ -328,11 +328,17 @@ layui.use(['table', 'form', 'layer'], function(){
   
   // 打开编辑表单
   function openEditForm(data){
-    // 根据题目类型显示/隐藏选项
     var showOptions = data.type !== '填空题';
-    
-    // 填充表单数据
-    form.val('editForm', {
+    layer.open({
+      type: 1,
+      title: '编辑题目',
+      area: ['700px', '650px'],
+      // 使用模板 HTML 字符串，避免原节点被移出并在关闭后出现在底部
+      content: $('#editFormTemplate').html(),
+      success: function(layero){
+        var $box = $(layero);
+        // 填充表单数据（按 lay-filter 定位）
+        form.val('editForm', {
           'id': data.id,
           'type': data.type,
           'question': data.question,
@@ -342,35 +348,28 @@ layui.use(['table', 'form', 'layer'], function(){
           'option_d': data.option_d,
           'answer': data.answer,
           'explanation': data.explanation,
-          'image': data.image   // 新增
-    });
-    
-    // 打开弹窗
-    layer.open({
-      type: 1,
-      title: '编辑题目',
-      area: ['700px', '650px'],
-      content: $('#editFormTemplate'),
-      success: function(){
-        // 控制选项显示/隐藏
-        toggleOptions(showOptions);
-        form.render(); // 重新渲染表单
+          'image': data.image
+        });
+        // 控制选项显示/隐藏（作用域限定在弹层内部）
+        toggleOptions($box, showOptions);
+        form.render();
       }
     });
   }
   
-  // 监听题目类型切换
+  // 监听题目类型切换（作用域限定在当前弹层）
   form.on('select(questionType)', function(data){
-    // 如果是填空题，隐藏选项
-    toggleOptions(data.value !== '填空题');
+    var $layer = $(data.elem).closest('.layui-layer');
+    toggleOptions($layer, data.value !== '填空题');
   });
   
-  // 控制选项显示/隐藏
-  function toggleOptions(show){
+  // 控制选项显示/隐藏（容器作用域）
+  function toggleOptions($container, show){
+    var $targets = $container.find('.option-group');
     if(show){
-      $('.option-group').show();
+      $targets.show();
     } else {
-      $('.option-group').hide();
+      $targets.hide();
     }
   }
   

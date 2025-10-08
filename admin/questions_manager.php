@@ -52,6 +52,7 @@ $categories = $pdo->query("SELECT id, name FROM question_categories")->fetchAll(
           </div>
           <div class="layui-input-inline" style="width: auto;">
             <button type="button" class="layui-btn" id="loadQuestionsBtn">加载题目</button>
+            <button type="button" class="layui-btn layui-btn-normal" id="renameCategoryBtn">重命名分类</button>
           </div>
         </div>
       </form>
@@ -242,6 +243,65 @@ layui.use(['table', 'form', 'layer'], function(){
       page: {
         curr: 1
       }
+    });
+  });
+  
+  // 重命名分类按钮点击事件
+  $('#renameCategoryBtn').on('click', function(){
+    var categoryId = $('#category_id').val();
+    if(!categoryId){
+      layer.msg('请先选择要重命名的分类');
+      return;
+    }
+    
+    // 获取当前分类名称
+    var currentName = $('#category_id option:selected').text();
+    
+    // 弹出输入框
+    layer.prompt({
+      title: '重命名分类',
+      formType: 0,
+      value: currentName,
+      btn: ['确定', '取消']
+    }, function(newName, index){
+      newName = $.trim(newName);
+      
+      if(!newName){
+        layer.msg('分类名称不能为空');
+        return;
+      }
+      
+      if(newName === currentName){
+        layer.msg('名称未改变');
+        layer.close(index);
+        return;
+      }
+      
+      // 发送重命名请求
+      $.ajax({
+        url: 'ajax.php',
+        type: 'POST',
+        data: {
+          act: 'rename_category',
+          id: categoryId,
+          name: newName
+        },
+        success: function(res){
+          if(res.success){
+            layer.msg('重命名成功');
+            layer.close(index);
+            // 刷新页面以更新分类列表
+            setTimeout(function(){
+              location.reload();
+            }, 1000);
+          } else {
+            layer.msg('重命名失败：' + res.message);
+          }
+        },
+        error: function(){
+          layer.msg('网络错误，请稍后重试');
+        }
+      });
     });
   });
   

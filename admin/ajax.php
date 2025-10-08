@@ -235,6 +235,48 @@ switch ($action) {
         }
         break;
         
+    // 重命名分类
+    case 'rename_category':
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $id = intval($_POST['id'] ?? 0);
+            $name = trim($_POST['name'] ?? '');
+
+            if ($id <= 0) {
+                echo json_encode(['success' => false, 'message' => '分类ID无效'],448);
+                exit;
+            }
+
+            if ($name === '') {
+                echo json_encode(['success' => false, 'message' => '分类名称不能为空'],448);
+                exit;
+            }
+
+            // 检查新名称是否已存在（排除当前分类）
+            $stmt = $pdo->prepare("SELECT COUNT(*) FROM question_categories WHERE name = ? AND id != ?");
+            $stmt->execute([$name, $id]);
+            if ($stmt->fetchColumn() > 0) {
+                echo json_encode(['success' => false, 'message' => '该分类名称已存在'],448);
+                exit;
+            }
+
+            try {
+                // 更新分类名称
+                $stmt = $pdo->prepare("UPDATE question_categories SET name = ? WHERE id = ?");
+                $stmt->execute([$name, $id]);
+
+                if ($stmt->rowCount() > 0) {
+                    echo json_encode(['success' => true, 'message' => '分类重命名成功'],448);
+                } else {
+                    echo json_encode(['success' => false, 'message' => '分类不存在或名称未变更'],448);
+                }
+            } catch (Exception $e) {
+                echo json_encode(['success' => false, 'message' => '重命名失败，请重试'],448);
+            }
+        } else {
+            echo json_encode(['success' => false, 'message' => '请求方式错误'],448);
+        }
+        break;
+        
     case 'login':
         $username = $_POST['username'] ?? '';
         $password = $_POST['password'] ?? '';

@@ -23,7 +23,7 @@ $redirect_uri_encoded = urlencode($redirect_uri);
 
 
 
-$api = "https://login.yzcdn.net/connect.php?act=login&appid={$appid}&appkey={$appkey}&type={$type}&redirect_uri={$redirect_uri}";
+$api = "https://login.znnu.com/connect.php?act=login&appid={$appid}&appkey={$appkey}&type={$type}&redirect_uri={$redirect_uri}";
 
 // 获取返回的 JSON
 $response = file_get_contents($api);

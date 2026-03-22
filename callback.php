@@ -16,7 +16,7 @@ if (empty($type) || empty($code) || !in_array($mode, ['login', 'bind'])) {
 }
 
 // 请求用户信息
-$api = "https://login.yzcdn.net/connect.php?act=callback&appid={$appid}&appkey={$appkey}&type={$type}&code={$code}";
+$api = "https://login.znnu.com/connect.php?act=callback&appid={$appid}&appkey={$appkey}&type={$type}&code={$code}";
 $response = file_get_contents($api);
 $data = json_decode($response, true);
 

@@ -12,7 +12,7 @@ $host = $_SERVER['HTTP_HOST'];
 $redirect_uri = $protocol . $host . '/callback.php?mode=bind';
 $redirect_uri_encoded = urlencode($redirect_uri);
 
-$api = "https://login.yzcdn.net/connect.php?act=login&appid={$appid}&appkey={$appkey}&type={$type}&redirect_uri={$redirect_uri_encoded}";
+$api = "https://login.znnu.com/connect.php?act=login&appid={$appid}&appkey={$appkey}&type={$type}&redirect_uri={$redirect_uri_encoded}";
 
 $response = file_get_contents($api);
 $data = json_decode($response, true);

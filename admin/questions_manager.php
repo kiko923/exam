@@ -53,6 +53,7 @@ $categories = $pdo->query("SELECT id, name FROM question_categories")->fetchAll(
           <div class="layui-input-inline" style="width: auto;">
             <button type="button" class="layui-btn" id="loadQuestionsBtn">加载题目</button>
             <button type="button" class="layui-btn layui-btn-normal" id="renameCategoryBtn">重命名分类</button>
+            <button type="button" class="layui-btn layui-btn-warm" id="exportCategoryBtn">导出当前题库</button>
           </div>
         </div>
       </form>
@@ -303,6 +304,17 @@ layui.use(['table', 'form', 'layer'], function(){
         }
       });
     });
+  });
+  
+  // 导出当前题库按钮点击事件
+  $('#exportCategoryBtn').on('click', function(){
+    var categoryId = $('#category_id').val();
+    if(!categoryId){
+      layer.msg('请先选择要导出的分类');
+      return;
+    }
+    var url = 'ajax.php?act=export_questions&category_id=' + encodeURIComponent(categoryId);
+    window.location.href = url;
   });
   
   // 监听表格工具栏事件

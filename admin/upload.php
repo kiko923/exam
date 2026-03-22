@@ -56,6 +56,7 @@ $categories = $pdo->query("SELECT id, name FROM question_categories")->fetchAll(
         <div class="layui-form-item">
           <div class="layui-input-block">
             <button type="button" class="layui-btn layui-btn-normal" id="uploadBtn">上传并导入</button>
+            <a href="../assets/demo/demo.xlsx" style="margin-left: 10px;" download>下载题库示例</a>
           </div>
         </div>
       </form>

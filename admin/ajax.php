@@ -322,6 +322,67 @@ switch ($action) {
         header('Location: ./'); // 跳转到当前目录首页
         exit; // 终止脚本执行，确保不会继续执行后续代码
         break;
+
+    // 导出题库（Excel）
+    case 'export_questions':
+        $category_id = isset($_GET['category_id']) ? intval($_GET['category_id']) : 0;
+        if ($category_id <= 0) {
+            echo json_encode(['success' => false, 'message' => '请选择有效的题库分类'], 448);
+            break;
+        }
+
+        require '../includes/vendor/autoload.php'; // 引入 PhpSpreadsheet
+
+        try {
+            $catStmt = $pdo->prepare("SELECT name FROM question_categories WHERE id = ? LIMIT 1");
+            $catStmt->execute([$category_id]);
+            $categoryName = (string)$catStmt->fetchColumn();
+            if ($categoryName === '') {
+                $categoryName = '题库';
+            }
+
+            $stmt = $pdo->prepare("SELECT type, question, option_a, option_b, option_c, option_d, answer, explanation, image FROM questions WHERE category_id = ? ORDER BY id ASC");
+            $stmt->execute([$category_id]);
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+            $sheet->setTitle('questions');
+
+            // 标准导入格式表头：type | question | A | B | C | D | answer | explanation | image
+            $headers = ['题目类型', '题目内容', '选项A', '选项B', '选项C', '选项D', '正确答案', '解析', '图片URL'];
+            $sheet->fromArray($headers, null, 'A1');
+
+            $line = 2;
+            foreach ($rows as $r) {
+                $sheet->setCellValue('A' . $line, (string)($r['type'] ?? ''));
+                $sheet->setCellValue('B' . $line, (string)($r['question'] ?? ''));
+                $sheet->setCellValue('C' . $line, (string)($r['option_a'] ?? ''));
+                $sheet->setCellValue('D' . $line, (string)($r['option_b'] ?? ''));
+                $sheet->setCellValue('E' . $line, (string)($r['option_c'] ?? ''));
+                $sheet->setCellValue('F' . $line, (string)($r['option_d'] ?? ''));
+                $sheet->setCellValue('G' . $line, (string)($r['answer'] ?? ''));
+                $sheet->setCellValue('H' . $line, (string)($r['explanation'] ?? ''));
+                $sheet->setCellValue('I' . $line, (string)($r['image'] ?? ''));
+                $line++;
+            }
+
+            // 修正全局 JSON Content-Type
+            header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+            $safeName = preg_replace('/[\\\\\/\:\*\?\"\<\>\|]+/', '_', $categoryName);
+            $fileName = $safeName . '_题库导出_' . date('Ymd_His') . '.xlsx';
+            header('Content-Disposition: attachment; filename="' . rawurlencode($fileName) . '"');
+            header('Cache-Control: max-age=0');
+
+            $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+            $writer->save('php://output');
+            exit;
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'message' => '导出过程中发生错误: ' . $e->getMessage()], 448);
+            break;
+        }
+        break;
         
         // 处理Excel上传
     case 'handle_upload':
